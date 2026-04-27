@@ -19,6 +19,7 @@ if (platform() === 'darwin' || platform() === 'linux') {
 }
 
 let cachedCameras = {};
+let pendingGetCamera = {};
 
 export const getCameras = async () => {
   const availableCameras = [];
@@ -41,11 +42,7 @@ export const flushCamera = async (id) => {
   cachedCameras[id] = null;
 };
 
-export const getCamera = async (id) => {
-  if (cachedCameras[id]) {
-    return cachedCameras[id];
-  }
-
+const doGetCamera = async (id) => {
   for (const camType of Cameras) {
     const cameras = (await camType?.browser?.getCameras()) || [];
     for (const camera of cameras) {
@@ -60,6 +57,21 @@ export const getCamera = async (id) => {
       }
     }
   }
-
   return null;
+};
+
+export const getCamera = async (id) => {
+  if (cachedCameras[id]) {
+    return cachedCameras[id];
+  }
+  if (pendingGetCamera[id]) {
+    return pendingGetCamera[id];
+  }
+  const promise = doGetCamera(id);
+  pendingGetCamera[id] = promise;
+  try {
+    return await promise;
+  } finally {
+    delete pendingGetCamera[id];
+  }
 };

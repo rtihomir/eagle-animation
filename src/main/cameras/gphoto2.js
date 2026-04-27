@@ -36,12 +36,21 @@ class GPhoto2Camera {
     this.commandPending = null;
     this.outputBuffer = '';
     this.previewLoopRunning = false;
+    this.startShellPromise = null;
     this.tmpDir = join(tmpdir(), `eagle-gphoto2-${process.pid}-${deviceId.replace(/[^a-z0-9]/gi, '-')}`);
   }
 
   async _startShell() {
     if (this.shellProcess) return;
+    if (!this.startShellPromise) {
+      this.startShellPromise = this._spawnShell().finally(() => {
+        this.startShellPromise = null;
+      });
+    }
+    return this.startShellPromise;
+  }
 
+  async _spawnShell() {
     await mkdir(this.tmpDir, { recursive: true });
 
     // Best-effort: free USB before shell takes it (single shot, no respawn loop needed —
@@ -88,6 +97,7 @@ class GPhoto2Camera {
     // Set local working directory so capture-preview / capture-image-and-download
     // write into our private tmp dir.
     await this._sendCommand(`lcd ${this.tmpDir}`);
+    console.log(`📸 gphoto2 shell ready for ${this.deviceId} (pid ${proc.pid})`);
   }
 
   _processOutput() {
@@ -183,6 +193,15 @@ class GPhoto2Camera {
   }
 
   async takePicture() {
+    // If connect() is in flight, shell may still be spawning — wait briefly
+    if (!this.shellProcess && this.previewActive) {
+      let waited = 0;
+      while (!this.shellProcess && this.previewActive && waited < 15000) {
+        await new Promise((r) => setTimeout(r, 100));
+        waited += 100;
+      }
+    }
+    console.log(`📸 takePicture: shell=${this.shellProcess ? `pid ${this.shellProcess.pid}` : 'null'}, previewActive=${this.previewActive}`);
     if (!this.shellProcess) throw new Error('camera not connected');
     this.capturing = true;
     try {
