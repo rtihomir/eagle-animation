@@ -142,11 +142,28 @@ class GPhoto2Camera {
         if (this.commandPending) {
           this.commandPending = null;
           reject(new Error(`command timeout (${timeoutMs}ms): ${cmd}`));
+          this._abortCurrentCommand().catch((e) => console.warn(`📸 abort failed: ${e.message}`));
         }
       }, timeoutMs);
       this.commandPending = { resolve, reject, timeoutId };
       this.shellProcess.stdin.write(`${cmd}\n`);
     });
+  }
+
+  async _abortCurrentCommand() {
+    if (!this.shellProcess) return;
+    console.warn('📸 sending SIGINT to gphoto2 shell to abort hung command');
+    try {
+      this.shellProcess.kill('SIGINT');
+    } catch (_) {
+      return;
+    }
+    try {
+      await this._waitForPrompt(10000);
+      console.log('📸 shell recovered after SIGINT, ready for next command');
+    } catch (_) {
+      console.warn('📸 shell did not recover after SIGINT — will respawn on next connect');
+    }
   }
 
   async _previewLoop() {
@@ -213,10 +230,15 @@ class GPhoto2Camera {
       const before = new Set(await readdir(this.tmpDir));
 
       // S5 capture takes ~15s over USB tether — generous timeout
+      const tCmd0 = Date.now();
       await this._sendCommand('capture-image-and-download', 60000);
+      const tCmd = Date.now() - tCmd0;
 
+      const tFs0 = Date.now();
       const after = await readdir(this.tmpDir);
       const newFiles = after.filter((f) => !before.has(f) && f !== 'capture_preview.jpg');
+      const tFs = Date.now() - tFs0;
+      console.log(`📸 capture timing: gphoto2=${tCmd}ms, fsScan=${tFs}ms, newFiles=${newFiles.length}`);
 
       if (newFiles.length === 0) {
         console.warn(`📸 tmp dir contents after capture: ${after.join(', ')}`);
