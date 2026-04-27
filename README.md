@@ -100,7 +100,7 @@ Some features are device-dependent or platform-limited. Here's a summary table.
 1. Including Chromium based browsers (Edge, Brave, Opera, Arc, etc...).
 2. The quality of webcam photos is poorer on Firefox and Safari.
 3. Webcam settings are only supported on Windows.
-4. Only on Windows and with Canon cameras.
+4. On Windows with Canon cameras (EDSDK, included). On macOS with most DSLRs via libgphoto2 — requires `brew install gphoto2`. Linux is untested but expected to work the same way as macOS if the gphoto2 CLI is installed.
 5. Using WebUSB, can require advanced configuration on Windows.
 
 ## Camera support and DSLR implementation
@@ -128,8 +128,36 @@ DSLR support depends on the platform and the specific implementation. Refer to t
 | Platform | Downloadable app | Web (Chrome)        | Web (Firefox) | Web (Safari) |
 | -------- | ---------------- | ------------------- | ------------- | ------------ |
 | Windows  | EDSDK            | libgphoto2 (WebUSB) | 🔴            | 🔴           |
-| Linux    | 🔴               | libgphoto2 (WebUSB) | 🔴            | 🔴           |
-| Mac      | 🔴               | libgphoto2 (WebUSB) | 🔴            | 🔴           |
+| Linux    | gphoto2 (CLI)¹   | libgphoto2 (WebUSB) | 🔴            | 🔴           |
+| Mac      | gphoto2 (CLI)    | libgphoto2 (WebUSB) | 🔴            | 🔴           |
+
+1. Untested but expected to work; please report results.
 
 - [EDSDK](https://developercommunity.usa.canon.com/resource/1744392420000/CDC_EDSDK_Compat_List)
 - [libgphoto2](http://www.gphoto.org/proj/libgphoto2/support.php)
+
+### Installing gphoto2 (macOS / Linux)
+
+The downloadable app uses the [gphoto2](http://www.gphoto.org/) CLI to communicate with DSLR cameras on macOS and Linux. It is **not bundled** with Eagle Animation and must be installed separately:
+
+**macOS** (Homebrew):
+
+```bash
+brew install gphoto2
+```
+
+**Linux** (Debian / Ubuntu):
+
+```bash
+sudo apt-get install gphoto2
+```
+
+**Linux** (Fedora):
+
+```bash
+sudo dnf install gphoto2
+```
+
+After installation, run `gphoto2 --auto-detect` in a terminal with your camera connected to confirm it's detected — if it shows up there, it will work in Eagle Animation. The [supported cameras list](http://www.gphoto.org/proj/libgphoto2/support.php) is a good reference, but many cameras work even if not explicitly listed (e.g. some Panasonic models identify as supported sibling models over USB).
+
+**macOS note:** macOS auto-launches a `PTPCamera` daemon when a PTP device is connected, which can race with gphoto2 for USB access. Eagle Animation kills it on connect, but if you experience "Could not claim USB device" errors, try unplugging and replugging the camera.
