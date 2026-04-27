@@ -27,6 +27,7 @@ const groupDevices = (devices, t) => {
   const categories = {
     'WEB-WEBCAM': t('Webcams'),
     'NATIVE-EDSDK': t('EDSDK'),
+    'NATIVE-GPHOTO2': t('gPhoto2'),
     'WEB-GPHOTO2': t('WebUSB'),
   };
 

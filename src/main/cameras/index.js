@@ -10,6 +10,14 @@ if (platform() === 'win32') {
     .catch(console.warn);
 }
 
+if (platform() === 'darwin' || platform() === 'linux') {
+  import('./gphoto2')
+    .then((gphoto2) => {
+      Cameras.push({ browser: gphoto2.CameraBrowser, item: gphoto2.Camera });
+    })
+    .catch(console.warn);
+}
+
 let cachedCameras = {};
 
 export const getCameras = async () => {

@@ -89,6 +89,9 @@ app.whenReady().then(() => {
     try {
       // Create a Sharp instance
       const inputBuf = await readFile(diskPath);
+      if (inputBuf.length === 0) {
+        return new Response(null, { status: 404 });
+      }
       let img = sharp(inputBuf);
 
       // Metadata only
