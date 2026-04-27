@@ -5,7 +5,6 @@ import { join } from 'node:path';
 
 const PROMPT_REGEX = /gphoto2:[^\n]*?>\s*$/;
 const ERROR_REGEX = /\*\*\* Error/;
-const CAPT_FILE_REGEX = /^capt\d+\.jpg$/i;
 
 const runGphoto2Once = (args) =>
   new Promise((resolve, reject) => {
@@ -210,34 +209,38 @@ class GPhoto2Camera {
         await new Promise((r) => setTimeout(r, 30));
       }
 
-      // Clean stale capture files so we can identify the new one
-      const before = await readdir(this.tmpDir);
-      for (const f of before) {
-        if (CAPT_FILE_REGEX.test(f)) {
-          try {
-            await unlink(join(this.tmpDir, f));
-          } catch (_) {
-            // file vanished
-          }
-        }
-      }
+      // Snapshot tmp dir state before capture so we can find the new file by diff
+      const before = new Set(await readdir(this.tmpDir));
 
       // S5 capture takes ~15s over USB tether — generous timeout
       await this._sendCommand('capture-image-and-download', 60000);
 
       const after = await readdir(this.tmpDir);
-      const captFile = after.find((f) => CAPT_FILE_REGEX.test(f));
-      if (!captFile) throw new Error('capture file not found after capture-image-and-download');
+      const newFiles = after.filter((f) => !before.has(f) && f !== 'capture_preview.jpg');
 
-      const buffer = await readFile(join(this.tmpDir, captFile));
-      try {
-        await unlink(join(this.tmpDir, captFile));
-      } catch (_) {
-        // best effort
+      if (newFiles.length === 0) {
+        console.warn(`📸 tmp dir contents after capture: ${after.join(', ')}`);
+        throw new Error('capture file not found after capture-image-and-download');
       }
 
-      console.log(`📸 captured ${buffer.length} bytes`);
-      return { type: 'image/jpeg', buffer };
+      // Prefer JPEG over RAW if camera saved both
+      const captFile = newFiles.find((f) => /\.jpe?g$/i.test(f)) || newFiles[0];
+      const ext = captFile.split('.').pop()?.toLowerCase() || 'jpg';
+      const mimeType = /^jpe?g$/.test(ext) ? 'image/jpeg' : `image/${ext}`;
+
+      const buffer = await readFile(join(this.tmpDir, captFile));
+
+      // Cleanup all newly captured files (RAW + JPEG if dual save)
+      for (const f of newFiles) {
+        try {
+          await unlink(join(this.tmpDir, f));
+        } catch (_) {
+          // best effort
+        }
+      }
+
+      console.log(`📸 captured ${buffer.length} bytes from ${captFile}`);
+      return { type: mimeType, buffer };
     } finally {
       this.capturing = false;
     }
