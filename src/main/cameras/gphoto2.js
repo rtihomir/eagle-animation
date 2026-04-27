@@ -6,9 +6,30 @@ import { join } from 'node:path';
 const PROMPT_REGEX = /gphoto2:[^\n]*?>\s*$/;
 const ERROR_REGEX = /\*\*\* Error/;
 
+// Electron apps launched from Finder/Dock don't inherit the user's shell PATH,
+// so Homebrew-installed gphoto2 (/opt/homebrew/bin or /usr/local/bin) won't be found.
+// Resolve the binary path once at module load using a login shell which sources .zprofile/.bash_profile.
+const resolveGphoto2Bin = () => {
+  const extra = '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin';
+  try {
+    return execSync('which gphoto2', { shell: '/bin/zsh', env: { ...process.env, PATH: `${process.env.PATH || ''}:${extra}` } })
+      .toString()
+      .trim();
+  } catch (_) {}
+  for (const p of ['/opt/homebrew/bin/gphoto2', '/usr/local/bin/gphoto2']) {
+    try {
+      execSync(`test -x "${p}"`);
+      return p;
+    } catch (_) {}
+  }
+  return 'gphoto2';
+};
+
+const GPHOTO2_BIN = resolveGphoto2Bin();
+
 const runGphoto2Once = (args) =>
   new Promise((resolve, reject) => {
-    const proc = spawn('gphoto2', args);
+    const proc = spawn(GPHOTO2_BIN, args);
     let stdout = '';
     let stderr = '';
     proc.stdout.on('data', (chunk) => {
@@ -62,7 +83,7 @@ class GPhoto2Camera {
       }
     }
 
-    const proc = spawn('gphoto2', ['--port', this.deviceId, '--force-overwrite', '--shell']);
+    const proc = spawn(GPHOTO2_BIN, ['--port', this.deviceId, '--force-overwrite', '--shell']);
     this.shellProcess = proc;
 
     const onOutput = (chunk) => {
