@@ -139,6 +139,12 @@ class PreviewStream extends Component {
     if (canvas) {
       const ctx = canvas.getContext('2d');
 
+      // After one undecodable frame Chrome leaves the stream image broken (complete, zero width, no
+      // error event) and never recovers, so reopen the stream.
+      if (this._streamType === 'image' && this._imgEl?.complete && !this._imgEl.naturalWidth) {
+        this._scheduleImgRetry();
+      }
+
       if (this._streamType === 'image' && this._imgEl?.complete && this._imgEl?.naturalWidth) {
         if (canvas.width !== this._imgEl.naturalWidth) canvas.width = this._imgEl.naturalWidth;
         if (canvas.height !== this._imgEl.naturalHeight) canvas.height = this._imgEl.naturalHeight;
